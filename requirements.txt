@@ -1,0 +1,8 @@
+streamlit
+streamlit-drawable-canvas
+plotly
+pandas
+numpy
+mido
+midi2audio
+torch

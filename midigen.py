@@ -50,7 +50,6 @@ class InstrumentManager:
         return inst
 
     def duplicate_instrument(self, instrument_id):
-        import copy
         inst = self.get_instrument_by_id(instrument_id)
         if inst:
             new_inst = copy.deepcopy(inst)

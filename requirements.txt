@@ -1,8 +1,8 @@
-streamlit
-streamlit-drawable-canvas
-plotly
-pandas
-numpy
-mido
-midi2audio
-torch
+streamlit==1.31.0
+streamlit-drawable-canvas==0.9.5
+plotly==5.18.0
+pandas==2.1.4
+numpy==1.26.4
+mido==1.2.10
+midi2audio==0.1.1
+torch==2.1.2

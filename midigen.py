@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objs as go
 from streamlit_drawable_canvas import st_canvas
+import copy
 
 class InstrumentManager:
     def __init__(self):
@@ -81,18 +82,15 @@ class InstrumentManager:
 
 class UndoRedoManager:
     def __init__(self, manager):
-        import copy
         self.manager = manager
         self.undo_stack = []
         self.redo_stack = []
 
     def snapshot(self):
-        import copy
         self.undo_stack.append(copy.deepcopy(self.manager.instruments))
         self.redo_stack.clear()
 
     def undo(self):
-        import copy
         if self.undo_stack:
             self.redo_stack.append(copy.deepcopy(self.manager.instruments))
             self.manager.instruments = self.undo_stack.pop()
@@ -102,7 +100,6 @@ class UndoRedoManager:
                 )
 
     def redo(self):
-        import copy
         if self.redo_stack:
             self.undo_stack.append(copy.deepcopy(self.manager.instruments))
             self.manager.instruments = self.redo_stack.pop()
@@ -509,16 +506,40 @@ def breakbeat_poly(notes):
     return res
 
 def microtiming_poly(notes, max_shift=5):
-    res = []
+    """Apply random timing shifts while preserving note order."""
+    result = []
     for track in notes:
-        new = []
-        for n in track:
-            shift = np.random.randint(-max_shift, max_shift+1)
-            n2 = n.copy()
-            n2[0] = max(0, n2[0] + shift)
-            new.append(n2)
-        res.append(np.array(new))
-    return res
+        if len(track) == 0:
+            result.append(track)
+            continue
+
+        # Convert delta ticks to absolute ticks for easier shifting
+        abs_events = []
+        cumulative = 0
+        for evt in track:
+            cumulative += evt[0]
+            abs_events.append([cumulative, evt[1], evt[2], evt[3], evt[4]])
+
+        # Apply random shifts and clamp at zero
+        shifted = []
+        for tick, note, vel, dur, trk in abs_events:
+            shifted_tick = max(0, tick + np.random.randint(-max_shift, max_shift + 1))
+            shifted.append([shifted_tick, note, vel, dur, trk])
+
+        # Re-sort after shifting
+        shifted.sort(key=lambda x: x[0])
+
+        # Convert back to delta ticks
+        delta_track = []
+        prev_tick = 0
+        for tick, note, vel, dur, trk in shifted:
+            delta = tick - prev_tick
+            delta_track.append([max(0, delta), note, vel, dur, trk])
+            prev_tick = tick
+
+        result.append(np.array(delta_track))
+
+    return result
 
 # -------- Automação MIDI --------
 def lfo_automation(length, cc_num, depth=64, freq=0.1, base=64, channel=0):

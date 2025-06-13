@@ -4,6 +4,10 @@ import pandas as pd
 import plotly.graph_objs as go
 from streamlit_drawable_canvas import st_canvas
 import copy
+import logging
+
+logging.basicConfig(level=logging.ERROR)
+logger = logging.getLogger(__name__)
 
 class InstrumentManager:
     def __init__(self):
@@ -274,8 +278,12 @@ def midi_to_poly_dataset(midi_file):
             last_abs_tick = abs_tick
         
         return np.array(final_dataset) if final_dataset else np.array([])
-    except Exception as e:
+    except (OSError, ValueError) as e:
         st.error(f"Erro ao processar arquivo MIDI: {e}")
+        return np.array([])
+    except Exception as e:
+        logger.exception("Unexpected error processing MIDI")
+        st.error("Erro inesperado ao processar arquivo MIDI.")
         return np.array([])
 
 def notes_to_midi_file(notes, tempo=120):
@@ -444,8 +452,12 @@ def train_poly_model(notes_data, params):
 
         torch.save(model.state_dict(), params["model_path"])
         return model
-    except Exception as e:
+    except (RuntimeError, ValueError) as e:
         st.error(f"Erro ao treinar o modelo de IA: {e}")
+        return None
+    except Exception as e:
+        logger.exception("Unexpected error training model")
+        st.error("Erro inesperado ao treinar o modelo de IA.")
         return None
 
 def infer_poly_sequence(model, seq_len=512, n_tracks=4, prime_sequence=None, randomness_temp=1.0):
@@ -492,8 +504,12 @@ def infer_poly_sequence(model, seq_len=512, n_tracks=4, prime_sequence=None, ran
         final_out_sequences = [np.array(out_sequences_by_track[k]) for k in sorted(out_sequences_by_track.keys())] # Ensure sorted keys for consistent track order
         
         return final_out_sequences
-    except Exception as e:
+    except (RuntimeError, ValueError) as e:
         st.error(f"Erro ao inferir sequência com o modelo de IA: {e}")
+        return []
+    except Exception as e:
+        logger.exception("Unexpected error inferring sequence")
+        st.error("Erro inesperado ao inferir sequência com o modelo de IA.")
         return []
 
 # -------- Algoritmos de Manipulação MIDI --------
@@ -585,8 +601,12 @@ def export_ckc(notes, out_path):
                         f.write(struct.pack('B', int(n[3])))
                         f.write(struct.pack('B', t))
         return out_path
-    except Exception as e:
+    except (OSError, struct.error) as e:
         st.error(f"Erro ao exportar CKC: {e}")
+        return None
+    except Exception as e:
+        logger.exception("Unexpected error exporting CKC")
+        st.error("Erro inesperado ao exportar CKC.")
         return None
 
 def export_cki(notes, out_path):
@@ -599,8 +619,12 @@ def export_cki(notes, out_path):
                         line = f"{int(n[0])},{int(n[1])},{int(n[2])},{int(n[3])},{t}\n" # Use n[3] for duration
                         f.write(line)
         return out_path
-    except Exception as e:
+    except OSError as e:
         st.error(f"Erro ao exportar CKI: {e}")
+        return None
+    except Exception as e:
+        logger.exception("Unexpected error exporting CKI")
+        st.error("Erro inesperado ao exportar CKI.")
         return None
 
 def export_p3pattern_json(notes, out_path):
@@ -620,8 +644,12 @@ def export_p3pattern_json(notes, out_path):
         with open(out_path, "w") as f:
             json.dump({"p3_pattern":p3}, f, indent=2)
         return out_path
-    except Exception as e:
+    except OSError as e:
         st.error(f"Erro ao exportar P3 Pattern JSON: {e}")
+        return None
+    except Exception as e:
+        logger.exception("Unexpected error exporting P3 pattern")
+        st.error("Erro inesperado ao exportar P3 Pattern JSON.")
         return None
 
 def export_auxrows(notes, out_path):
@@ -639,8 +667,12 @@ def export_auxrows(notes, out_path):
         with open(out_path, "w") as f:
             json.dump({"aux_rows":aux}, f, indent=2)
         return out_path
-    except Exception as e:
+    except OSError as e:
         st.error(f"Erro ao exportar Aux Rows: {e}")
+        return None
+    except Exception as e:
+        logger.exception("Unexpected error exporting Aux Rows")
+        st.error("Erro inesperado ao exportar Aux Rows.")
         return None
 
 # -------- Importação Cirklon CKC/CKI/AuxRows --------
@@ -663,8 +695,12 @@ def import_ckc_bin(path):
         for n in notes:
             tracks[n[4]].append(n)
         return [np.array(tracks[k]) for k in sorted(tracks)]
-    except Exception as e:
+    except (OSError, struct.error) as e:
         st.error(f"Erro ao importar CKC: {e}")
+        return []
+    except Exception as e:
+        logger.exception("Unexpected error importing CKC")
+        st.error("Erro inesperado ao importar CKC.")
         return []
 
 def import_cki_txt(path):
@@ -683,8 +719,12 @@ def import_cki_txt(path):
         for n in notes:
             tracks[n[4]].append(n)
         return [np.array(tracks[k]) for k in sorted(tracks)]
-    except Exception as e:
+    except (OSError, ValueError) as e:
         st.error(f"Erro ao importar CKI: {e}")
+        return []
+    except Exception as e:
+        logger.exception("Unexpected error importing CKI")
+        st.error("Erro inesperado ao importar CKI.")
         return []
 
 def import_auxrows_json(path):
@@ -692,8 +732,12 @@ def import_auxrows_json(path):
         with open(path) as f:
             data = json.load(f)
         return data.get("aux_rows", [])
-    except Exception as e:
+    except (OSError, json.JSONDecodeError) as e:
         st.error(f"Erro ao importar Aux Rows JSON: {e}")
+        return []
+    except Exception as e:
+        logger.exception("Unexpected error importing Aux Rows JSON")
+        st.error("Erro inesperado ao importar Aux Rows JSON.")
         return []
 
 # -------- Validação Musical Avançada --------
@@ -849,8 +893,11 @@ def midi_preview_sf2(notes, sf2_path, tempo=120):
             FluidSynth(sf2_path).midi_to_audio(tmp.name, audio_path)
             with open(audio_path, "rb") as f:
                 st.audio(f, format="audio/wav")
-    except Exception as e:
+    except (OSError, ValueError) as e:
         st.error(f"Erro ao gerar preview de áudio: {e}")
+    except Exception as e:
+        logger.exception("Unexpected error generating audio preview")
+        st.error("Erro inesperado ao gerar preview de áudio.")
 
 # -------- MAIN APP --------
 
@@ -943,8 +990,11 @@ elif tab == "Importar MIDI/CKC/CKI":
                     flattened_notes = midi_to_poly_dataset(file)
                     if flattened_notes.shape[0] > 0:
                         all_flattened_notes.append(flattened_notes)
-                except Exception as e:
+                except (OSError, ValueError) as e:
                     st.warning(f"Não foi possível processar {file.name}: {e}")
+                except Exception as e:
+                    logger.exception("Unexpected error importing MIDI file")
+                    st.warning(f"Não foi possível processar {file.name} devido a um erro inesperado.")
             
             if all_flattened_notes:
                 combined_flattened_notes = np.concatenate(all_flattened_notes, axis=0)
@@ -969,8 +1019,11 @@ elif tab == "Importar MIDI/CKC/CKI":
                 st.session_state["notes"] = import_ckc_bin(tmp_path)
                 st.success("Importação CKC realizada.")
                 os.remove(tmp_path) # Clean up temp file
-            except Exception as e:
+            except OSError as e:
                 st.error(f"Erro durante a importação CKC: {e}")
+            except Exception as e:
+                logger.exception("Unexpected error importing CKC file")
+                st.error("Erro inesperado durante a importação CKC")
     elif up_mode == "CKI":
         file = st.file_uploader("Arquivo CKI", type=["cki"])
         if file:
@@ -981,8 +1034,11 @@ elif tab == "Importar MIDI/CKC/CKI":
                 st.session_state["notes"] = import_cki_txt(tmp_path)
                 st.success("Importação CKI realizada.")
                 os.remove(tmp_path) # Clean up temp file
-            except Exception as e:
+            except OSError as e:
                 st.error(f"Erro durante a importação CKI: {e}")
+            except Exception as e:
+                logger.exception("Unexpected error importing CKI file")
+                st.error("Erro inesperado durante a importação CKI")
 elif tab == "Editar Piano Roll":
     if "notes" in st.session_state and st.session_state["notes"]:
         notes_edit = pianoroll_dragdrop(st.session_state["notes"])
@@ -1062,8 +1118,11 @@ elif tab == "Manipular MIDI":
             if mode == "microtiming":
                 st.session_state["notes"] = microtiming_poly(st.session_state["notes"])
             st.success("Manipulação aplicada.")
-        except Exception as e:
+        except ValueError as e:
             st.error(f"Erro durante a manipulação MIDI: {e}")
+        except Exception as e:
+            logger.exception("Unexpected error manipulating MIDI")
+            st.error("Erro inesperado durante a manipulação MIDI")
     else:
         st.warning("Por favor, importe ou gere notas primeiro para manipular as notas.")
 elif tab == "Exportar Cirklon":
@@ -1090,8 +1149,11 @@ elif tab == "Exportar Cirklon":
                 st.download_button("Baixar CKC", f, file_name="Pattern.ckc")
             with open("Pattern.cki", "rb") as f:
                 st.download_button("Baixar CKI", f, file_name="Pattern.cki")
-        except Exception as e:
+        except OSError as e:
             st.error(f"Erro durante a exportação: {e}")
+        except Exception as e:
+            logger.exception("Unexpected error during export")
+            st.error("Erro inesperado durante a exportação")
     else:
         st.warning("Por favor, importe ou gere notas primeiro para exportar para o Cirklon.")
 elif tab == "Preview Audio":
@@ -1145,8 +1207,11 @@ elif tab == "Validação Musical":
                     st.write(f"- {error}")
             else:
                 st.success("Nenhum erro de validação encontrado.")
-        except Exception as e:
+        except ValueError as e:
             st.error(f"Erro durante a validação musical: {e}")
+        except Exception as e:
+            logger.exception("Unexpected error during musical validation")
+            st.error("Erro inesperado durante a validação musical")
     else:
         st.warning("Por favor, importe ou gere notas primeiro para realizar a validação musical.")
 elif tab == "Carregar/Salvar Modelo IA":
@@ -1159,8 +1224,11 @@ elif tab == "Carregar/Salvar Modelo IA":
                 st.success(f"Modelo salvo como {model_name}")
                 with open(model_name, "rb") as f:
                     st.download_button("Baixar Modelo", f, file_name=model_name)
-            except Exception as e:
+            except OSError as e:
                 st.error(f"Erro ao salvar o modelo: {e}")
+            except Exception as e:
+                logger.exception("Unexpected error saving model")
+                st.error("Erro inesperado ao salvar o modelo")
     else:
         st.info("Nenhum modelo treinado para salvar.")
 
@@ -1192,5 +1260,8 @@ elif tab == "Carregar/Salvar Modelo IA":
             st.session_state["trained_model"] = loaded_model
             st.success(f"Modelo {uploaded_model_file.name} carregado com sucesso.")
             os.remove(tmp_model_path) # Clean up temp file
-        except Exception as e:
+        except (OSError, RuntimeError) as e:
             st.error(f"Erro ao carregar o modelo: {e}")
+        except Exception as e:
+            logger.exception("Unexpected error loading model")
+            st.error("Erro inesperado ao carregar o modelo")

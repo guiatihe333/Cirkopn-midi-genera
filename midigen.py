@@ -199,8 +199,6 @@ def ccs_panel(instrument):
             )
 
 # ----------- INICIALIZAÇÃO & PAINEL CKIEditor -----------
-st.set_page_config(layout="wide")
-st.title("Sistema IA MIDI Cirklon + Editor CKI + Biblioteca de Instrumentos")
 
 if "manager" not in st.session_state:
     st.session_state["manager"] = InstrumentManager()
@@ -208,73 +206,6 @@ if "undo_redo" not in st.session_state:
     st.session_state["undo_redo"] = UndoRedoManager(st.session_state["manager"])
 manager = st.session_state["manager"]
 undo_redo = st.session_state["undo_redo"]
-
-tab = st.sidebar.radio(
-    "Etapa",
-    [
-        "CKIEditor (Instrumentos)",
-        "Importar MIDI/CKC/CKI",
-        "Editar Piano Roll",
-        "Automação Avançada",
-        "Treinar IA",
-        "Gerar Música",
-        "Manipular MIDI",
-        "Exportar Cirklon",
-        "Preview Audio",
-        "Validação Musical",
-        "Carregar/Salvar Modelo IA"
-    ]
-)
-
-if tab == "CKIEditor (Instrumentos)":
-    st.sidebar.header("Biblioteca de Instrumentos CKI")
-    search = st.sidebar.text_input("Buscar instrumento")
-    filtered = manager.list_instruments(search)
-    for inst in filtered:
-        cols = st.sidebar.columns([6, 1, 1, 1])
-        is_selected = inst["id"] == manager.selected_instrument_id
-        if cols[0].button(
-            f"{▶️ ' if is_selected else ''}{inst['name']} (ID: {inst['id']})",
-            key=f"select_{inst['id']}"
-        ):
-            manager.select_instrument(inst["id"])
-        if cols[1].button("🗐", key=f"dup_{inst['id']}"):
-            undo_redo.snapshot()
-            manager.duplicate_instrument(inst["id"])
-        if cols[2].button("🗑️", key=f"del_{inst['id']}"):
-            undo_redo.snapshot()
-            manager.delete_instrument(inst["id"])
-    if st.sidebar.button("Novo instrumento"):
-        undo_redo.snapshot()
-        manager.create_instrument()
-    uc, rc = st.sidebar.columns(2)
-    if uc.button("↩️ Undo"):
-        undo_redo.undo()
-    if rc.button("↪️ Redo"):
-        undo_redo.redo()
-
-    instrument = manager.get_instrument_by_id(manager.selected_instrument_id)
-    if instrument:
-        st.subheader(f"Edição: {instrument['name']} (ID: {instrument['id']})")
-        instrument["name"] = st.text_input("Nome", instrument["name"])
-        instrument["midi_port"] = st.number_input("Porta MIDI", 1, 12, instrument["midi_port"])
-        instrument["midi_channel"] = st.number_input("Canal MIDI", 1, 16, instrument["midi_channel"])
-        instrument["default_note"] = st.text_input("Nota padrão", instrument["default_note"])
-        errors = validate_instrument(instrument, manager.instruments)
-        if errors:
-            for err in errors:
-                st.warning(err)
-        else:
-            st.success("Instrumento válido!")
-        with st.expander("Track Values", expanded=False):
-            track_values_panel(instrument)
-        with st.expander("Note Rows", expanded=False):
-            note_rows_panel(instrument)
-        with st.expander("CCs", expanded=False):
-            ccs_panel(instrument)
-        st.markdown("---")
-    else:
-        st.info("Nenhum instrumento selecionado.")
  
 # Todas as funções e módulos integrados em um só arquivo.
 # Inclui: importação/exportação MIDI & Cirklon, IA polifônica, manipulação, automação multi-CC, piano roll, preview, validação, e FastAPI backend para integração.
@@ -914,11 +845,73 @@ if "notes" not in st.session_state:
 if "tempo" not in st.session_state:
     st.session_state["tempo"] = 120
 
-tab = st.sidebar.radio("Etapa", [
-    "Importar MIDI/CKC/CKI", "Editar Piano Roll", "Automação Avançada", "Treinar IA", "Gerar Música", "Manipular MIDI", "Exportar Cirklon", "Preview Audio", "Validação Musical", "Carregar/Salvar Modelo IA"
-])
+tab = st.sidebar.radio(
+    "Etapa",
+    [
+        "CKIEditor (Instrumentos)",
+        "Importar MIDI/CKC/CKI",
+        "Editar Piano Roll",
+        "Automação Avançada",
+        "Treinar IA",
+        "Gerar Música",
+        "Manipular MIDI",
+        "Exportar Cirklon",
+        "Preview Audio",
+        "Validação Musical",
+        "Carregar/Salvar Modelo IA",
+    ]
+)
 
-if tab == "Importar MIDI/CKC/CKI":
+if tab == "CKIEditor (Instrumentos)":
+    st.sidebar.header("Biblioteca de Instrumentos CKI")
+    search = st.sidebar.text_input("Buscar instrumento")
+    filtered = manager.list_instruments(search)
+    for inst in filtered:
+        cols = st.sidebar.columns([6, 1, 1, 1])
+        is_selected = inst["id"] == manager.selected_instrument_id
+        if cols[0].button(
+            f"{'▶️ ' if is_selected else ''}{inst['name']} (ID: {inst['id']})",
+            key=f"select_{inst['id']}"
+        ):
+            manager.select_instrument(inst["id"])
+        if cols[1].button("🗐", key=f"dup_{inst['id']}"):
+            undo_redo.snapshot()
+            manager.duplicate_instrument(inst["id"])
+        if cols[2].button("🗑️", key=f"del_{inst['id']}"):
+            undo_redo.snapshot()
+            manager.delete_instrument(inst["id"])
+    if st.sidebar.button("Novo instrumento"):
+        undo_redo.snapshot()
+        manager.create_instrument()
+    uc, rc = st.sidebar.columns(2)
+    if uc.button("↩️ Undo"):
+        undo_redo.undo()
+    if rc.button("↪️ Redo"):
+        undo_redo.redo()
+
+    instrument = manager.get_instrument_by_id(manager.selected_instrument_id)
+    if instrument:
+        st.subheader(f"Edição: {instrument['name']} (ID: {instrument['id']})")
+        instrument["name"] = st.text_input("Nome", instrument["name"])
+        instrument["midi_port"] = st.number_input("Porta MIDI", 1, 12, instrument["midi_port"])
+        instrument["midi_channel"] = st.number_input("Canal MIDI", 1, 16, instrument["midi_channel"])
+        instrument["default_note"] = st.text_input("Nota padrão", instrument["default_note"])
+        errors = validate_instrument(instrument, manager.instruments)
+        if errors:
+            for err in errors:
+                st.warning(err)
+        else:
+            st.success("Instrumento válido!")
+        with st.expander("Track Values", expanded=False):
+            track_values_panel(instrument)
+        with st.expander("Note Rows", expanded=False):
+            note_rows_panel(instrument)
+        with st.expander("CCs", expanded=False):
+            ccs_panel(instrument)
+        st.markdown("---")
+    else:
+        st.info("Nenhum instrumento selecionado.")
+elif tab == "Importar MIDI/CKC/CKI":
     up_mode = st.selectbox("Tipo de importação", ["MIDI", "CKC", "CKI"])
     if up_mode == "MIDI":
         files = st.file_uploader("Arquivos MIDI (múltiplos)", type=["mid","midi"], accept_multiple_files=True)

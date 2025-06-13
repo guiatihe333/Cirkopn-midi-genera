@@ -20,6 +20,17 @@ streamlit run midigen.py
 
 The application will open in your browser at `http://localhost:8501/`.
 
+## Running Tests
+
+Install the dependencies and execute the test suite with:
+
+```bash
+pip install -r requirements.txt
+pytest
+```
+
+If you encounter import errors or missing packages, rerun the install command above to ensure all requirements are present.
+
 ## Features
 
 * Import and export MIDI, CKC and CKI files

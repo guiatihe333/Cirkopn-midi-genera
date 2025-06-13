@@ -832,7 +832,7 @@ def midi_preview_sf2(notes, sf2_path, tempo=120):
         st.error(f"Erro ao gerar preview de áudio: {e}")
 
 # -------- MAIN APP --------
-st.set_page_config(layout="wide")
+
 st.title("Sistema IA MIDI Cirklon - Completo e Integrado")
 
 # Model persistence

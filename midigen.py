@@ -4,6 +4,20 @@ import pandas as pd
 import plotly.graph_objs as go
 from streamlit_drawable_canvas import st_canvas
 import copy
+from midi_utils import (
+    midi_to_poly_dataset,
+    notes_to_midi_file,
+    export_midi_file,
+    export_ckc,
+    export_cki,
+    export_p3pattern_json,
+    export_auxrows,
+    import_ckc_bin,
+    import_cki_txt,
+    import_auxrows_json,
+)
+from model import PolyTransformer, train_poly_model, infer_poly_sequence
+from ui import track_values_panel, note_rows_panel, ccs_panel
 
 class InstrumentManager:
     def __init__(self):
@@ -50,7 +64,6 @@ class InstrumentManager:
         return inst
 
     def duplicate_instrument(self, instrument_id):
-        import copy
         inst = self.get_instrument_by_id(instrument_id)
         if inst:
             new_inst = copy.deepcopy(inst)
@@ -142,57 +155,104 @@ def validate_instrument(inst, all_instruments):
 def track_values_panel(instrument):
     st.subheader("Track Values")
     for tv in instrument["track_values"]:
-        with st.expander(f"Slot {tv['slot']}"):
-            tv["label"] = st.text_input(f"Label (Slot {tv['slot']})", tv.get("label", ""), key=f"label_{tv['slot']}")
+        with st.container():
+            st.markdown(f"**Slot {tv['slot']}**")
+            tv["label"] = st.text_input(
+                f"Label (Slot {tv['slot']})",
+                tv.get("label", ""),
+                key=f"label_{tv['slot']}"
+            )
             tv_type = st.selectbox(
                 "Tipo",
                 ["MidiCC", "TrackControl", "Empty"],
-                index={"MidiCC":0,"TrackControl":1,"Empty":2}[tv.get("type","Empty")],
+                index={"MidiCC": 0, "TrackControl": 1, "Empty": 2}[tv.get("type", "Empty")],
                 key=f"type_{tv['slot']}"
             )
             tv["type"] = tv_type
             if tv_type == "MidiCC":
-                tv["cc"] = st.number_input("CC #", 0, 127, tv.get("cc",0), key=f"cc_{tv['slot']}")
+                tv["cc"] = st.number_input(
+                    "CC #", 0, 127, tv.get("cc", 0), key=f"cc_{tv['slot']}"
+                )
             elif tv_type == "TrackControl":
                 tv["track_control"] = st.selectbox(
                     "Track Control",
                     [
-                        "pgm", "quant%", "note%", "noteC", "velo%", "veloC",
-                        "leng%", "tbase", "xpos", "octave", "knob1", "knob2"
+                        "pgm",
+                        "quant%",
+                        "note%",
+                        "noteC",
+                        "velo%",
+                        "veloC",
+                        "leng%",
+                        "tbase",
+                        "xpos",
+                        "octave",
+                        "knob1",
+                        "knob2",
                     ],
                     index=[
-                        "pgm", "quant%", "note%", "noteC", "velo%", "veloC",
-                        "leng%", "tbase", "xpos", "octave", "knob1", "knob2"
-                    ].index(tv.get("track_control","pgm")),
+                        "pgm",
+                        "quant%",
+                        "note%",
+                        "noteC",
+                        "velo%",
+                        "veloC",
+                        "leng%",
+                        "tbase",
+                        "xpos",
+                        "octave",
+                        "knob1",
+                        "knob2",
+                    ].index(tv.get("track_control", "pgm")),
                     key=f"tc_{tv['slot']}"
                 )
 
 def note_rows_panel(instrument):
     st.subheader("Note Rows")
     for nr in instrument["note_rows"]:
-        with st.expander(f"Slot {nr['slot']}"):
+        with st.container():
+            st.markdown(f"**Slot {nr['slot']}**")
             nr["name"] = st.text_input(
-                f"Nome (Slot {nr['slot']})", nr.get("name", ""), key=f"nrname_{nr['slot']}"
+                f"Nome (Slot {nr['slot']})",
+                nr.get("name", ""),
+                key=f"nrname_{nr['slot']}"
             )
             nr["note"] = st.text_input(
-                "Nota (ex: C3, D#4)", nr.get("note", ""), key=f"nrnote_{nr['slot']}"
+                "Nota (ex: C3, D#4)",
+                nr.get("note", ""),
+                key=f"nrnote_{nr['slot']}"
             )
             nr["velocity"] = st.number_input(
-                "Velocidade", 1, 127, nr.get("velocity", 100), key=f"nrvelo_{nr['slot']}"
+                "Velocidade",
+                1,
+                127,
+                nr.get("velocity", 100),
+                key=f"nrvelo_{nr['slot']}"
             )
 
 def ccs_panel(instrument):
     st.subheader("CCs")
     for cc in instrument["ccs"]:
-        with st.expander(f"Slot {cc['slot']}"):
+        with st.container():
+            st.markdown(f"**Slot {cc['slot']}**")
             cc["label"] = st.text_input(
-                f"Label (Slot {cc['slot']})", cc.get("label", ""), key=f"cclabel_{cc['slot']}"
+                f"Label (Slot {cc['slot']})",
+                cc.get("label", ""),
+                key=f"cclabel_{cc['slot']}"
             )
             cc["cc"] = st.number_input(
-                "CC #", 0, 127, cc.get("cc",0), key=f"ccnum_{cc['slot']}"
+                "CC #",
+                0,
+                127,
+                cc.get("cc", 0),
+                key=f"ccnum_{cc['slot']}"
             )
             cc["default"] = st.number_input(
-                "Valor Padrão", 0, 127, cc.get("default",0), key=f"ccdef_{cc['slot']}"
+                "Valor Padrão",
+                0,
+                127,
+                cc.get("default", 0),
+                key=f"ccdef_{cc['slot']}"
             )
 
 # ----------- INICIALIZAÇÃO & PAINEL CKIEditor -----------
@@ -274,7 +334,7 @@ def midi_to_poly_dataset(midi_file):
             last_abs_tick = abs_tick
         
         return np.array(final_dataset) if final_dataset else np.array([])
-    except Exception as e:
+    except (IOError, ValueError) as e:
         st.error(f"Erro ao processar arquivo MIDI: {e}")
         return np.array([])
 
@@ -335,6 +395,15 @@ def notes_to_midi_file(notes, tempo=120):
         mid.tracks[0].insert(0, mido.MetaMessage("set_tempo", tempo=mido.bpm2tempo(tempo)))
 
     return mid
+
+def export_midi_file(notes, out_path, tempo=120):
+    try:
+        midi_file = notes_to_midi_file(notes, tempo=tempo)
+        midi_file.save(out_path)
+        return out_path
+    except (IOError, ValueError) as e:
+        st.error(f"Erro ao exportar MIDI: {e}")
+        return None
 
 # -------- IA Polifônica --------
 class PolyTransformer(nn.Module):
@@ -444,7 +513,7 @@ def train_poly_model(notes_data, params):
 
         torch.save(model.state_dict(), params["model_path"])
         return model
-    except Exception as e:
+    except (IOError, ValueError) as e:
         st.error(f"Erro ao treinar o modelo de IA: {e}")
         return None
 
@@ -492,7 +561,7 @@ def infer_poly_sequence(model, seq_len=512, n_tracks=4, prime_sequence=None, ran
         final_out_sequences = [np.array(out_sequences_by_track[k]) for k in sorted(out_sequences_by_track.keys())] # Ensure sorted keys for consistent track order
         
         return final_out_sequences
-    except Exception as e:
+    except (IOError, ValueError) as e:
         st.error(f"Erro ao inferir sequência com o modelo de IA: {e}")
         return []
 
@@ -545,7 +614,7 @@ def microtiming_poly(notes, max_shift=5):
 def lfo_automation(length, cc_num, depth=64, freq=0.1, base=64, channel=0):
     t = np.arange(length)
     values = (base + depth * np.sin(2 * np.pi * freq * t / length)).astype(int)
-    ccs = [[tick, channel, cc_num, int(val)] for tick, val in enumerate(values)]
+    ccs = [[tick, int(val)] for tick, val in enumerate(values)]
     return ccs
 
 def envelope_automation(length, cc_num, attack=0.1, decay=0.2, sustain=0.7, release=0.2, max_val=127, channel=0):
@@ -559,12 +628,12 @@ def envelope_automation(length, cc_num, attack=0.1, decay=0.2, sustain=0.7, rele
         np.ones(sus_len) * max_val * 0.7,
         np.linspace(max_val*0.7, 0, rel_len)
     ])
-    ccs = [[tick, channel, cc_num, int(val)] for tick, val in enumerate(values)]
+    ccs = [[tick, int(val)] for tick, val in enumerate(values)]
     return ccs
 
 def randomize_automation(length, cc_num, minv=0, maxv=127, channel=0):
     values = np.random.randint(minv, maxv+1, length)
-    ccs = [[tick, channel, cc_num, int(val)] for tick, val in enumerate(values)]
+    ccs = [[tick, int(val)] for tick, val in enumerate(values)]
     return ccs
 
 # -------- Exportação Cirklon CKC/CKI --------
@@ -585,7 +654,7 @@ def export_ckc(notes, out_path):
                         f.write(struct.pack('B', int(n[3])))
                         f.write(struct.pack('B', t))
         return out_path
-    except Exception as e:
+    except (IOError, ValueError) as e:
         st.error(f"Erro ao exportar CKC: {e}")
         return None
 
@@ -599,7 +668,7 @@ def export_cki(notes, out_path):
                         line = f"{int(n[0])},{int(n[1])},{int(n[2])},{int(n[3])},{t}\n" # Use n[3] for duration
                         f.write(line)
         return out_path
-    except Exception as e:
+    except (IOError, ValueError) as e:
         st.error(f"Erro ao exportar CKI: {e}")
         return None
 
@@ -620,7 +689,7 @@ def export_p3pattern_json(notes, out_path):
         with open(out_path, "w") as f:
             json.dump({"p3_pattern":p3}, f, indent=2)
         return out_path
-    except Exception as e:
+    except (IOError, ValueError) as e:
         st.error(f"Erro ao exportar P3 Pattern JSON: {e}")
         return None
 
@@ -639,7 +708,7 @@ def export_auxrows(notes, out_path):
         with open(out_path, "w") as f:
             json.dump({"aux_rows":aux}, f, indent=2)
         return out_path
-    except Exception as e:
+    except (IOError, ValueError) as e:
         st.error(f"Erro ao exportar Aux Rows: {e}")
         return None
 
@@ -663,7 +732,7 @@ def import_ckc_bin(path):
         for n in notes:
             tracks[n[4]].append(n)
         return [np.array(tracks[k]) for k in sorted(tracks)]
-    except Exception as e:
+    except (IOError, ValueError) as e:
         st.error(f"Erro ao importar CKC: {e}")
         return []
 
@@ -683,7 +752,7 @@ def import_cki_txt(path):
         for n in notes:
             tracks[n[4]].append(n)
         return [np.array(tracks[k]) for k in sorted(tracks)]
-    except Exception as e:
+    except (IOError, ValueError) as e:
         st.error(f"Erro ao importar CKI: {e}")
         return []
 
@@ -692,7 +761,7 @@ def import_auxrows_json(path):
         with open(path) as f:
             data = json.load(f)
         return data.get("aux_rows", [])
-    except Exception as e:
+    except (IOError, ValueError) as e:
         st.error(f"Erro ao importar Aux Rows JSON: {e}")
         return []
 
@@ -849,7 +918,7 @@ def midi_preview_sf2(notes, sf2_path, tempo=120):
             FluidSynth(sf2_path).midi_to_audio(tmp.name, audio_path)
             with open(audio_path, "rb") as f:
                 st.audio(f, format="audio/wav")
-    except Exception as e:
+    except (IOError, ValueError) as e:
         st.error(f"Erro ao gerar preview de áudio: {e}")
 
 # -------- MAIN APP --------
@@ -877,6 +946,7 @@ tab = st.sidebar.radio(
         "Gerar Música",
         "Manipular MIDI",
         "Exportar Cirklon",
+        "Exportar MIDI",
         "Preview Audio",
         "Validação Musical",
         "Carregar/Salvar Modelo IA",
@@ -943,7 +1013,7 @@ elif tab == "Importar MIDI/CKC/CKI":
                     flattened_notes = midi_to_poly_dataset(file)
                     if flattened_notes.shape[0] > 0:
                         all_flattened_notes.append(flattened_notes)
-                except Exception as e:
+                except (IOError, ValueError) as e:
                     st.warning(f"Não foi possível processar {file.name}: {e}")
             
             if all_flattened_notes:
@@ -969,7 +1039,7 @@ elif tab == "Importar MIDI/CKC/CKI":
                 st.session_state["notes"] = import_ckc_bin(tmp_path)
                 st.success("Importação CKC realizada.")
                 os.remove(tmp_path) # Clean up temp file
-            except Exception as e:
+            except (IOError, ValueError) as e:
                 st.error(f"Erro durante a importação CKC: {e}")
     elif up_mode == "CKI":
         file = st.file_uploader("Arquivo CKI", type=["cki"])
@@ -981,7 +1051,7 @@ elif tab == "Importar MIDI/CKC/CKI":
                 st.session_state["notes"] = import_cki_txt(tmp_path)
                 st.success("Importação CKI realizada.")
                 os.remove(tmp_path) # Clean up temp file
-            except Exception as e:
+            except (IOError, ValueError) as e:
                 st.error(f"Erro durante a importação CKI: {e}")
 elif tab == "Editar Piano Roll":
     if "notes" in st.session_state and st.session_state["notes"]:
@@ -1062,7 +1132,7 @@ elif tab == "Manipular MIDI":
             if mode == "microtiming":
                 st.session_state["notes"] = microtiming_poly(st.session_state["notes"])
             st.success("Manipulação aplicada.")
-        except Exception as e:
+        except (IOError, ValueError) as e:
             st.error(f"Erro durante a manipulação MIDI: {e}")
     else:
         st.warning("Por favor, importe ou gere notas primeiro para manipular as notas.")
@@ -1090,10 +1160,22 @@ elif tab == "Exportar Cirklon":
                 st.download_button("Baixar CKC", f, file_name="Pattern.ckc")
             with open("Pattern.cki", "rb") as f:
                 st.download_button("Baixar CKI", f, file_name="Pattern.cki")
-        except Exception as e:
+        except (IOError, ValueError) as e:
             st.error(f"Erro durante a exportação: {e}")
     else:
         st.warning("Por favor, importe ou gere notas primeiro para exportar para o Cirklon.")
+elif tab == "Exportar MIDI":
+    if "notes" in st.session_state and st.session_state["notes"]:
+        try:
+            current_tempo = st.session_state.get("tempo", 120)
+            export_midi_file(st.session_state["notes"], "Pattern.mid", tempo=current_tempo)
+            with open("Pattern.mid", "rb") as f:
+                st.download_button("Baixar MIDI", f, file_name="Pattern.mid")
+            st.success("Exportação MIDI realizada.")
+        except (IOError, ValueError) as e:
+            st.error(f"Erro durante a exportação MIDI: {e}")
+    else:
+        st.warning("Por favor, importe ou gere notas primeiro para exportar para MIDI.")
 elif tab == "Preview Audio":
     if "notes" in st.session_state and st.session_state["notes"]:
         sf2_file = st.file_uploader("SoundFont SF2 para preview", type=["sf2"])
@@ -1145,7 +1227,7 @@ elif tab == "Validação Musical":
                     st.write(f"- {error}")
             else:
                 st.success("Nenhum erro de validação encontrado.")
-        except Exception as e:
+        except (IOError, ValueError) as e:
             st.error(f"Erro durante a validação musical: {e}")
     else:
         st.warning("Por favor, importe ou gere notas primeiro para realizar a validação musical.")
@@ -1159,7 +1241,7 @@ elif tab == "Carregar/Salvar Modelo IA":
                 st.success(f"Modelo salvo como {model_name}")
                 with open(model_name, "rb") as f:
                     st.download_button("Baixar Modelo", f, file_name=model_name)
-            except Exception as e:
+            except (IOError, ValueError) as e:
                 st.error(f"Erro ao salvar o modelo: {e}")
     else:
         st.info("Nenhum modelo treinado para salvar.")
@@ -1192,5 +1274,5 @@ elif tab == "Carregar/Salvar Modelo IA":
             st.session_state["trained_model"] = loaded_model
             st.success(f"Modelo {uploaded_model_file.name} carregado com sucesso.")
             os.remove(tmp_model_path) # Clean up temp file
-        except Exception as e:
+        except (IOError, ValueError) as e:
             st.error(f"Erro ao carregar o modelo: {e}")

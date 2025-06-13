@@ -40,6 +40,14 @@ If you encounter import errors or missing packages, rerun the install command ab
 * Validation tools to ensure notes fit a musical scale
 * Audio preview using a SoundFont file
 
+## Running Tests
+
+Run the unit tests with:
+
+```bash
+pytest
+```
+
 ## License
 
 This project is provided as-is for demonstration purposes.

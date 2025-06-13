@@ -545,7 +545,7 @@ def microtiming_poly(notes, max_shift=5):
 def lfo_automation(length, cc_num, depth=64, freq=0.1, base=64, channel=0):
     t = np.arange(length)
     values = (base + depth * np.sin(2 * np.pi * freq * t / length)).astype(int)
-    ccs = [[tick, channel, cc_num, int(val)] for tick, val in enumerate(values)]
+    ccs = [[tick, int(val)] for tick, val in enumerate(values)]
     return ccs
 
 def envelope_automation(length, cc_num, attack=0.1, decay=0.2, sustain=0.7, release=0.2, max_val=127, channel=0):
@@ -559,12 +559,12 @@ def envelope_automation(length, cc_num, attack=0.1, decay=0.2, sustain=0.7, rele
         np.ones(sus_len) * max_val * 0.7,
         np.linspace(max_val*0.7, 0, rel_len)
     ])
-    ccs = [[tick, channel, cc_num, int(val)] for tick, val in enumerate(values)]
+    ccs = [[tick, int(val)] for tick, val in enumerate(values)]
     return ccs
 
 def randomize_automation(length, cc_num, minv=0, maxv=127, channel=0):
     values = np.random.randint(minv, maxv+1, length)
-    ccs = [[tick, channel, cc_num, int(val)] for tick, val in enumerate(values)]
+    ccs = [[tick, int(val)] for tick, val in enumerate(values)]
     return ccs
 
 # -------- Exportação Cirklon CKC/CKI --------

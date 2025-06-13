@@ -1,0 +1,27 @@
+# Bytecode and caches
+__pycache__/
+*.pyc
+
+# Audio and MIDI files
+*.mid
+*.wav
+
+# Torch model files
+*.pt
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+*.egg-info
+
+# Virtual environments
+.venv/
+venv/
+
+# Tooling directories
+.vscode/
+.idea/
+
+# Misc
+*.log
